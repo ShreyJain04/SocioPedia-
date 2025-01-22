@@ -1,7 +1,7 @@
 import Verification from "../models/EmailVerification.js";
 import Users from "../models/User.js";
 import PasswordReset from "../models/passwordReset.js";
-import { comparepassword, createJWT, hashString } from "../utils/index.js";
+import { comparePassword, createJWT, hashString } from "../utils/index.js";
 import { resetPasswordLink } from "../utils/sendEmail.js";
 import FriendRequest from "../models/friendRequest.js";
 
@@ -11,65 +11,31 @@ export const verifyEmail = async (req, res) => {
   try {
     const result = await Verification.findOne({ userId });
 
-    if (result) {
-      const { expiresAt, token: hashedToken } = result;
-
-      // token has expires
-      if (expiresAt < Date.now()) {
-        Verification.findOneAndDelete({ userId })
-          .then(() => {
-            Users.findOneAndDelete({ _id: userId })
-              .then(() => {
-                const message = "Verification token has expired.";
-                res.redirect(`/users/verified?status=error&message=${message}`);
-              })
-              .catch((err) => {
-                res.redirect(`/users/verified?status=error&message=`);
-              });
-          })
-          .catch((error) => {
-            console.log(error);
-            res.redirect(`/users/verified?message=`);
-          });
-      } else {
-        //valid token
-        comparepassword(token, hashedToken)
-          .then((isMatch) => {
-            if (isMatch) {
-              Users.findOneAndUpdate({ _id: userId }, { verified: true })
-                .then(() => {
-                  Verification.findOneAndDelete({ userId }).then(() => {
-                    const message = "Email verified successfully";
-                    res.redirect(
-                      `/users/verified?status=success&message=${message}`
-                    );
-                  });
-                })
-                .catch((err) => {
-                  console.log(err);
-                  const message = "Verification failed or link is invalid";
-                  res.redirect(
-                    `/users/verified?status=error&message=${message}`
-                  );
-                });
-            } else {
-              // invalid token
-              const message = "Verification failed or link is invalid";
-              res.redirect(`/users/verified?status=error&message=${message}`);
-            }
-          })
-          .catch((err) => {
-            console.log(err);
-            res.redirect(`/users/verified?message=`);
-          });
-      }
-    } else {
-      const message = "Invalid verification link. Try again later.";
-      res.redirect(`/users/verified?status=error&message=${message}`);
+    if (!result) {
+      return res.redirect(`/users/verified?status=error&message=Invalid verification link. Try again later.`);
     }
+
+    const { expiresAt, token: hashedToken } = result;
+
+    if (expiresAt < Date.now()) {
+      await Verification.findOneAndDelete({ userId });
+      await Users.findOneAndDelete({ _id: userId });
+      return res.redirect(`/users/verified?status=error&message=Verification token has expired.`);
+    }
+
+    const isMatch = await comparePassword(token, hashedToken);
+
+    if (!isMatch) {
+      return res.redirect(`/users/verified?status=error&message=Verification failed or link is invalid`);
+    }
+
+    await Users.findOneAndUpdate({ _id: userId }, { verified: true });
+    await Verification.findOneAndDelete({ userId });
+    return res.redirect(`/users/verified?status=success&message=Email verified successfully`);
+
   } catch (error) {
     console.log(error);
-    res.redirect(`/users/verified?message=`);
+    return res.redirect(`/users/verified?message=`);
   }
 };
 
@@ -184,7 +150,7 @@ export const getUser = async (req, res, next) => {
       });
     }
 
-    user.password = undefined;
+    user.password = undefined;  //removing password
 
     res.status(200).json({
       success: true,
@@ -202,15 +168,15 @@ export const getUser = async (req, res, next) => {
 
 export const updateUser = async (req, res, next) => {
   try {
-    const { firstName, lastName, location, profileUrl, profession } = req.body;
+    const { firstName, lastName, location, profileUrl, profession } = req.body; //input taken
 
-    if (!(firstName || lastName || contact || profession || location)) {
+    if (!(firstName || lastName || profession || location)) {
       next("Please provide all required fields");
       return;
     }
 
     const { userId } = req.body.user;
-    const updateUser = {
+    const updatedUser = {
       firstName,
       lastName,
       location,
@@ -218,18 +184,19 @@ export const updateUser = async (req, res, next) => {
       profession,
       _id: userId,
     };
-    const user = await Users.findByIdAndUpdate(userId, updateUser, {
+    const user = await Users.findByIdAndUpdate(userId, updatedUser, {
       new: true,
     });
 
     await user.populate({ path: "friends", select: "-password" });
-    const token = createJWT(user?._id);
+
+    const token = createJWT(user?._id); //new token
 
     user.password = undefined;
-    console.log("yaha tak");
+
     res.status(200).json({
       sucess: true,
-      message: "User updated successfully",
+      message: "User Profile updated successfully!",
       user,
       token,
     });
@@ -244,7 +211,7 @@ export const friendRequest = async (req, res, next) => {
     const { userId } = req.body.user;
     const { requestTo } = req.body;
 
-    const requestExist = await FriendRequest.findOne({
+    const requestExist = await FriendRequest.findOne({ //checking whether the request already exists or not
       requestFrom: userId,
       requestTo,
     });
@@ -254,7 +221,7 @@ export const friendRequest = async (req, res, next) => {
       return;
     }
 
-    const accountExist = await FriendRequest.findOne({
+    const accountExist = await FriendRequest.findOne({ //friend request sent from friend's side
       requestFrom: requestTo,
       requestTo: userId,
     });
@@ -265,8 +232,8 @@ export const friendRequest = async (req, res, next) => {
     }
 
     const newRequest = await FriendRequest.create({
-      requestTo,
       requestFrom: userId,
+      requestTo,
     });
 
     res.status(201).json({
@@ -287,7 +254,7 @@ export const getFriendRequest = async (req, res) => {
   try {
     const { userId } = req.body.user;
 
-    const request = await FriendRequest.find({
+    const request = await FriendRequest.find({  //fetchinng all the request with status "Pending"
       requestTo: userId,
       requestStatus: "Pending",
     })
@@ -295,7 +262,7 @@ export const getFriendRequest = async (req, res) => {
         path: "requestFrom",
         select: "firstName lastName profileUrl profession -password",
       })
-      .limit(10)
+      .limit(5)
       .sort({
         _id: -1,
       });
@@ -326,19 +293,21 @@ export const acceptRequest = async (req, res, next) => {
       return;
     }
 
-    const newRequest = await FriendRequest.findByIdAndUpdate(
+    const newRequest = await FriendRequest.findByIdAndUpdate( //Status of request changes from frontend buttons
       { _id: rid },
       { requestStatus: status }
     );
 
     if (status === "Accepted") {
-      const user = await Users.findById(id);
-      user.friends.push(newRequest?.requestFrom); //Friend list of "user friend" updated
-      await user.save();
 
       const friend = await Users.findById(newRequest?.requestFrom);
       friend.friends.push(newRequest?.requestTo); //Friend list of "user" updated
       await friend.save();
+
+      const user = await Users.findById(id);
+      user.friends.push(newRequest?.requestFrom); //Friend list of "user friend" updated
+      await user.save();
+
     }
 
     res.status(201).json({
@@ -357,10 +326,10 @@ export const acceptRequest = async (req, res, next) => {
 
 export const profileViews = async (req, res, next) => {
   try {
-    const { userId } = req.body.user;
-    const { id } = req.body;
+    const { userId } = req.body.user;  //user
+    const { id } = req.body;           //whose profile is viewed
 
-    const user = await Users.findById(id);
+    const user = await Users.findById(id);  //whose profile is viewed
 
     user.views.push(userId);
 
@@ -380,26 +349,25 @@ export const profileViews = async (req, res, next) => {
   }
 };
 
-export const suggestedFriends = async (req, res) => {
+export const friendSuggestion = async (req, res) => {
   try {
-    const { userId } = req.body.user;
+    const { userId } = req.body; 
+    
+    const queryFilter = {
+      _id: { $ne: userId }, 
+      friends: { $nin: [userId] }, 
+    };
 
-    let queryObject = {};
-    queryObject._id = { $ne: userId };
-    queryObject.friends = { $nin: userId };
-
-    let queryResult = Users.find(queryObject)
-      .limit(15)
+    const suggestedFriends = await Users.find(queryFilter)
+      .limit(10)
       .select("firstName lastName profileUrl profession -password");
-
-    const suggestedFriends = await queryResult;
 
     res.status(200).json({
       success: true,
       data: suggestedFriends,
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(404).json({
       message: error.message,
     });

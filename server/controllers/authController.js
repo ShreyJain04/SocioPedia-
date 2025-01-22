@@ -1,4 +1,4 @@
-import { comparepassword, createJWT, hashString } from "../utils/index.js";
+import { comparePassword, createJWT, hashString } from "../utils/index.js";
 import Users from "../models/User.js";
 import { sendVerificationEmail } from "../utils/sendEmail.js";
 
@@ -67,7 +67,7 @@ export const login = async (req, res, next) => {
     }
 
     //compare password
-    const isMatch = await comparepassword(password, user?.password);
+    const isMatch = await comparePassword(password, user?.password);
 
     if (!isMatch) {
       next("Invalid email or Password!");

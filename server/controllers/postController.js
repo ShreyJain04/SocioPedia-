@@ -29,13 +29,14 @@ export const createPost = async (req, res, next) => {
   }
 };
 
-export const getPosts = async (req, res, next) => {
+export const getPosts = async (req, res, next) => {  //Retrieve posts based on user friends and an optional search query.
   try {
     const { userId } = req.body.user;
     const { search } = req.body;
 
     const user = await Users.findById(userId);
     const friends = user?.friends?.toString().split(",") ?? [];
+    //Converts the user's friends list (which is expected to be a comma-separated string) into an array of friend IDs.
     friends.push(userId);
 
     const searchPostQuery = {
@@ -52,10 +53,11 @@ export const getPosts = async (req, res, next) => {
         select: "firstName lastName location profileUrl -password",
       })
       .sort({ _id: -1 });
+      //Sorts the posts in descending order by their _id, which typically corresponds to the creation date (newest first).
 
     const friendsPosts = posts?.filter((post) => {
       return friends.includes(post?.userId?._id.toString());
-    });
+    });//Filters the retrieved posts to include only those created by the user or their friends.
 
     const otherPosts = posts?.filter(
       (post) => !friends.includes(post?.userId?._id.toString())
@@ -88,23 +90,6 @@ export const getPost = async (req, res, next) => {
       path: "userId",
       select: "firstName lastName location profileUrl -password",
     });
-    // .populate({
-    //   path: "comments",
-    //   populate: {
-    //     path: "userId",
-    //     select: "firstName lastName location profileUrl -password",
-    //   },
-    //   options: {
-    //     sort: "-_id",
-    //   },
-    // })
-    // .populate({
-    //   path: "comments",
-    //   populate: {
-    //     path: "replies.userId",
-    //     select: "firstName lastName location profileUrl -password",
-    //   },
-    // });
 
     res.status(200).json({
       sucess: true,
@@ -174,10 +159,10 @@ export const likePost = async (req, res, next) => {
 
     const index = post.likes.findIndex((pid) => pid === String(userId));
 
-    if (index === -1) {
+    if (index === -1) {  //If not liked, then like the post
       post.likes.push(userId);
     } else {
-      post.likes = post.likes.filter((pid) => pid !== String(userId));
+      post.likes = post.likes.filter((pid) => pid !== String(userId)); //If already liked then remove the like
     }
 
     const newPost = await Posts.findByIdAndUpdate(id, post, {
@@ -200,7 +185,8 @@ export const likePostComment = async (req, res, next) => {
   const { id, rid } = req.params;
 
   try {
-    if (rid === undefined || rid === null || rid === `false`) {
+    if (rid === undefined || rid === null || rid === `false`) {  //If true, it means the like is for a comment, not a reply.
+      //HANDLE COMMENT LIKE
       const comment = await Comments.findById(id);
 
       const index = comment.likes.findIndex((el) => el === String(userId));
@@ -216,7 +202,8 @@ export const likePostComment = async (req, res, next) => {
       });
 
       res.status(201).json(updated);
-    } else {
+    } else {  //HANDLE REPLY COMMENT LIKE
+
       const replyComments = await Comments.findOne(
         { _id: id },
         {
@@ -228,9 +215,7 @@ export const likePostComment = async (req, res, next) => {
         }
       );
 
-      const index = replyComments?.replies[0]?.likes.findIndex(
-        (i) => i === String(userId)
-      );
+      const index = replyComments?.replies[0]?.likes.findIndex((i) => i === String(userId));
 
       if (index === -1) {
         replyComments.replies[0].likes.push(userId);

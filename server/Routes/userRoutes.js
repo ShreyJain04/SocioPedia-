@@ -10,7 +10,7 @@ import {
   friendRequest,
   acceptRequest,
   profileViews,
-  suggestedFriends,
+  friendSuggestion,
   getFriendRequest,
 } from "../controllers/userController.js";
 import userAuth from "../middleware/authMiddleware.js";
@@ -18,29 +18,27 @@ import userAuth from "../middleware/authMiddleware.js";
 const router = express.Router();
 const __dirname = path.resolve(path.dirname(""));
 
-router.get("/verify/:userId/:token", verifyEmail);
+router.get("/verify/:userId/:token", verifyEmail);  //Email Verification
 
-// RESET PASSWORD ALL ROUTES
+// Rseset password Routes
 router.post("/request-passwordreset", requestPasswordReset);  //Sent password change request through email
 router.get("/reset-password/:userId/:token", resetPassword);  //recieve id and token from link in email
 router.post("/reset-password", changePassword);  //Performs the main task of changing password
 
-// USER ROUTES
+// User Routes
 router.post("/get-user/:id?", userAuth, getUser);
 router.put("/update-user", userAuth, updateUser);
 
 // Friend Requests
 router.post("/friend-request", userAuth, friendRequest);
 router.post("/get-friend-request",userAuth, getFriendRequest);
-
-// accept / deny request
-router.post("/accept-request", userAuth, acceptRequest);
+router.post("/accept-request", userAuth, acceptRequest);  // accept / deny request
 
 // View Profile
 router.post("/profile-view", userAuth, profileViews);
 
 // Friends Suggestion
-router.post("/suggested-friends", userAuth, suggestedFriends);
+router.post("/suggested-friends", userAuth, friendSuggestion);
 
 
 

@@ -58,7 +58,7 @@ const Login = () => {
         <div className="w-full lg:w-1/2 h-full p-10 2xl:px-20 flex flex-col justify-center ">
           <div className="w-full flex gap-2 items-center mb-6">
             <div className="p-2  rounded text-white">
-              {/* <TbSocial /> */}
+              
               <img src={img} className="h-14 w-14 rounded-full" alt="" />
             </div>
             <span className="text-2xl text-[#87A922] font-semibold">
